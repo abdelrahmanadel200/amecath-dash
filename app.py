@@ -99,12 +99,12 @@ st.markdown(
     .main-title {
         font-size: 34px;
         font-weight: 800;
-        color: #1B1D21;
+        color: ##F8FAFC;
         margin-bottom: 0;
     }
 
     .sub-title {
-        color: #6B7078;
+        color: #94A3B8;
         font-size: 14px;
         margin-top: -5px;
         margin-bottom: 20px;
