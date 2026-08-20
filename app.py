@@ -23,7 +23,6 @@ st.set_page_config(
 BASE_DIR = Path(__file__).resolve().parent
 
 EXCEL_FILE = BASE_DIR / "Amecath Dash(10).xlsx"
-ASSET_ZIP = BASE_DIR / "WhatsApp Unknown 2026-08-04 at 3.04.16 PM(2).zip"
 ASSET_DIR = BASE_DIR / "assets"
 
 COUNTRIES = [
@@ -86,7 +85,7 @@ st.markdown(
 <style>
 
     .stApp {
-        background-color: #F6F7F9;
+        background-color: #0F172A;
     }
 
     [data-testid="stSidebar"] {
