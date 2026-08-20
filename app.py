@@ -1,6 +1,6 @@
 import os
 import re
-import zipfile
+import base64
 from pathlib import Path
 
 import pandas as pd
@@ -61,23 +61,41 @@ COUNTRY_FLAGS = {
     "Bahrain": "🇧🇭",
 }
 
-# Mapping between country and image order.
-# Change these if your images are in another order.
-COUNTRY_IMAGE_ORDER = {
-    "Saudi Arabia": 0,
-    "UAE": 1,
-    "Qatar": 2,
-    "Kuwait": 3,
-    "Oman": 4,
-    "Jordan": 5,
-    "Lebanon": 6,
-    "Iraq": 7,
-    "Bahrain": 8,
+# Exact filenames as uploaded to the repo. Each entry is looked up both at
+# the repo root and inside an "assets" folder, so either location works.
+COUNTRY_ASSET_FILES = {
+    "Saudi Arabia": {"flag": "saudi_arabia_flag.jpeg", "landscape": "saudi_landscape.jpeg"},
+    "UAE": {"flag": "uae_flag.jpeg", "landscape": "uae_landscape.jpeg"},
+    "Qatar": {"flag": "qatar_flag.jpeg", "landscape": "qatar_landscape.jpeg"},
+    "Kuwait": {"flag": "kuwait_flag.jpeg", "landscape": "kuwait_landscape.jpeg"},
+    "Oman": {"flag": "oman_flag.jpeg", "landscape": "oman_landscape.jpeg"},
+    "Jordan": {"flag": "jordon_flag.jpeg", "landscape": "jordon_landscape.jpeg"},
+    "Lebanon": {"flag": "lebanon_flag.jpeg", "landscape": "lebanon_landscape.jpeg"},
+    "Iraq": {"flag": "iraq_flag.jpg", "landscape": "iraq_landscape.jpg"},
+    "Bahrain": {"flag": "bahrain_flag.jpeg", "landscape": "bahrain_landscape.jpg"},
 }
+
+# Primary / secondary colors pulled from each country's flag, used to theme
+# the Country Explorer page (card borders, headings, accents) when that
+# country is selected.
+COUNTRY_COLORS = {
+    "Saudi Arabia": {"primary": "#006C35", "secondary": "#FFFFFF"},
+    "UAE": {"primary": "#FF0000", "secondary": "#00732F"},
+    "Qatar": {"primary": "#8D1B3D", "secondary": "#FFFFFF"},
+    "Kuwait": {"primary": "#CE1126", "secondary": "#007A3D"},
+    "Oman": {"primary": "#DB161B", "secondary": "#008000"},
+    "Jordan": {"primary": "#CE1126", "secondary": "#007A3D"},
+    "Lebanon": {"primary": "#ED1C24", "secondary": "#00A651"},
+    "Iraq": {"primary": "#CE1126", "secondary": "#007A3D"},
+    "Bahrain": {"primary": "#CE1126", "secondary": "#FFFFFF"},
+}
+
+DEFAULT_ACCENT = {"primary": "#3B82F6", "secondary": "#93C5FD"}
 
 
 # ============================================================
-# CSS
+# CSS (base dark theme — cards match the app background,
+# text colors chosen to read cleanly on that background)
 # ============================================================
 
 st.markdown(
@@ -99,7 +117,7 @@ st.markdown(
     .main-title {
         font-size: 34px;
         font-weight: 800;
-        color: ##F8FAFC;
+        color: #F8FAFC;
         margin-bottom: 0;
     }
 
@@ -113,22 +131,22 @@ st.markdown(
     .section-title {
         font-size: 21px;
         font-weight: 750;
-        color: #202329;
+        color: #F8FAFC;
         margin-top: 20px;
         margin-bottom: 12px;
     }
 
     .kpi-card {
-        background: #FFFFFF;
-        border: 1px solid #E4E6EA;
+        background: rgba(30, 41, 59, 0.65);
+        border: 1px solid rgba(148, 163, 184, 0.25);
         border-radius: 12px;
         padding: 18px;
         min-height: 120px;
-        box-shadow: 0 2px 7px rgba(0,0,0,0.035);
+        box-shadow: 0 2px 7px rgba(0,0,0,0.15);
     }
 
     .kpi-label {
-        color: #70757D;
+        color: #94A3B8;
         font-size: 12px;
         font-weight: 650;
         text-transform: uppercase;
@@ -136,7 +154,7 @@ st.markdown(
     }
 
     .kpi-value {
-        color: #1C1E22;
+        color: #F8FAFC;
         font-size: 27px;
         font-weight: 800;
         margin-top: 8px;
@@ -155,6 +173,18 @@ st.markdown(
         width: 100%;
         height: 300px;
         object-fit: cover;
+    }
+
+    .hero-flag {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        width: 54px;
+        height: 54px;
+        border-radius: 8px;
+        object-fit: cover;
+        box-shadow: 0 2px 10px rgba(0,0,0,.5);
+        border: 2px solid rgba(255,255,255,0.85);
     }
 
     .hero-text {
@@ -176,17 +206,17 @@ st.markdown(
     }
 
     .action-card {
-        background: white;
+        background: rgba(30, 41, 59, 0.65);
         border-radius: 12px;
         padding: 18px;
-        border: 1px solid #E4E6EA;
+        border: 1px solid rgba(148, 163, 184, 0.25);
         min-height: 135px;
     }
 
     .action-title {
         font-size: 12px;
         text-transform: uppercase;
-        color: #777C84;
+        color: #94A3B8;
         font-weight: 700;
     }
 
@@ -194,17 +224,18 @@ st.markdown(
         font-size: 20px;
         font-weight: 800;
         margin-top: 8px;
+        color: #F8FAFC;
     }
 
     .action-description {
         font-size: 13px;
-        color: #777C84;
+        color: #94A3B8;
         margin-top: 4px;
     }
 
     .score-box {
-        background: #FFFFFF;
-        border: 1px solid #E4E6EA;
+        background: rgba(30, 41, 59, 0.65);
+        border: 1px solid rgba(148, 163, 184, 0.25);
         border-radius: 12px;
         padding: 18px;
     }
@@ -212,10 +243,11 @@ st.markdown(
     .score-number {
         font-size: 36px;
         font-weight: 850;
+        color: #F8FAFC;
     }
 
     .source-note {
-        color: #777C84;
+        color: #94A3B8;
         font-size: 11px;
         margin-top: 20px;
     }
@@ -367,6 +399,11 @@ def safe_numeric(series):
     )
 
 
+def image_to_base64(path):
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+
 # ============================================================
 # LOAD DATA
 # ============================================================
@@ -422,40 +459,30 @@ data, summary = prepare_data()
 # IMAGE HANDLING
 # ============================================================
 
-@st.cache_resource
-def extract_assets():
-    if not ASSET_ZIP.exists():
-        return []
-
-    ASSET_DIR.mkdir(exist_ok=True)
-
-    existing = list(ASSET_DIR.glob("*"))
-
-    if not existing:
-        with zipfile.ZipFile(ASSET_ZIP, "r") as z:
-            z.extractall(ASSET_DIR)
-
-    return sorted(
-        [
-            x for x in ASSET_DIR.iterdir()
-            if x.suffix.lower() in [".jpg", ".jpeg", ".png", ".webp"]
-        ]
-    )
-
-
-images = extract_assets()
-
-
-def get_country_image(country):
-    idx = COUNTRY_IMAGE_ORDER.get(country)
-
-    if idx is None:
+def find_asset(filename):
+    """Look for an uploaded image at the repo root or inside /assets."""
+    if not filename:
         return None
 
-    if idx < len(images):
-        return str(images[idx])
+    for candidate in (BASE_DIR / filename, ASSET_DIR / filename):
+        if candidate.exists():
+            return str(candidate)
 
     return None
+
+
+def get_country_flag_path(country):
+    info = COUNTRY_ASSET_FILES.get(country, {})
+    return find_asset(info.get("flag"))
+
+
+def get_country_landscape_path(country):
+    info = COUNTRY_ASSET_FILES.get(country, {})
+    return find_asset(info.get("landscape"))
+
+
+def get_country_colors(country):
+    return COUNTRY_COLORS.get(country, DEFAULT_ACCENT)
 
 
 # ============================================================
@@ -524,6 +551,70 @@ def kpi(label, value):
             <div class="kpi-label">{label}</div>
             <div class="kpi-value">{value}</div>
         </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# COUNTRY THEME (flag colors + landscape background)
+# ============================================================
+
+def apply_country_theme(country):
+    """
+    Re-colors the Country Explorer page using the selected country's flag
+    colors, and sets that country's landscape photo as the page background.
+    Only injected while Country Explorer is the active page, so other pages
+    are unaffected.
+    """
+
+    colors = get_country_colors(country)
+    landscape_path = get_country_landscape_path(country)
+
+    background_css = ""
+
+    if landscape_path:
+        b64 = image_to_base64(landscape_path)
+        background_css = f"""
+        [data-testid="stAppViewContainer"] > .main {{
+            background-image:
+                linear-gradient(rgba(15, 23, 42, 0.90), rgba(15, 23, 42, 0.94)),
+                url("data:image/jpeg;base64,{b64}");
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }}
+        """
+
+    st.markdown(
+        f"""
+        <style>
+        {background_css}
+
+        .section-title {{
+            color: {colors['secondary']} !important;
+            border-left: 4px solid {colors['primary']};
+            padding-left: 10px;
+        }}
+
+        .kpi-card, .action-card, .score-box {{
+            background: rgba(15, 23, 42, 0.72) !important;
+            border: 1px solid {colors['primary']} !important;
+        }}
+
+        .kpi-value, .action-value, .score-number {{
+            color: {colors['secondary']} !important;
+        }}
+
+        .hero-country {{
+            color: {colors['secondary']};
+        }}
+
+        .stTabs [aria-selected="true"] {{
+            color: {colors['secondary']} !important;
+            border-bottom-color: {colors['primary']} !important;
+        }}
+        </style>
         """,
         unsafe_allow_html=True,
     )
@@ -796,7 +887,8 @@ def get_country_row(country):
 
 def country_hero(country, row):
 
-    image_path = get_country_image(country)
+    image_path = get_country_landscape_path(country)
+    flag_path = get_country_flag_path(country)
 
     description = (
         "Regional dialysis market intelligence and commercial opportunity."
@@ -810,12 +902,21 @@ def country_hero(country, row):
                 f"{format_currency(row['Market Value Num'])} market value"
             )
 
-    if image_path and os.path.exists(image_path):
+    flag_html = ""
+
+    if flag_path:
+        flag_html = (
+            f'<img class="hero-flag" '
+            f'src="data:image/jpeg;base64,{image_to_base64(flag_path)}">'
+        )
+
+    if image_path:
 
         st.markdown(
             f"""
             <div class="hero">
                 <img src="data:image/jpeg;base64,{image_to_base64(image_path)}">
+                {flag_html}
                 <div class="hero-text">
                     <div class="hero-country">
                         {COUNTRY_FLAGS.get(country, "")} {country}
@@ -838,7 +939,9 @@ def country_hero(country, row):
                 border-radius:16px;
                 color:white;
                 margin-bottom:18px;
+                position:relative;
             ">
+                {flag_html}
                 <div style="font-size:34px;font-weight:850;">
                     {COUNTRY_FLAGS.get(country, "")} {country}
                 </div>
@@ -849,14 +952,6 @@ def country_hero(country, row):
             """,
             unsafe_allow_html=True,
         )
-
-
-def image_to_base64(path):
-
-    import base64
-
-    with open(path, "rb") as f:
-        return base64.b64encode(f.read()).decode()
 
 
 # ============================================================
@@ -958,10 +1053,12 @@ def country_overview(country, row):
 
         score = min(round(score), 100)
 
+        colors = get_country_colors(country)
+
         st.markdown(
             f"""
             <div class="score-box">
-                <div style="color:#777C84;font-size:13px;font-weight:700;">
+                <div style="color:#94A3B8;font-size:13px;font-weight:700;">
                     COUNTRY OPPORTUNITY SCORE
                 </div>
 
@@ -970,13 +1067,13 @@ def country_overview(country, row):
                 </div>
 
                 <div style="
-                    background:#E6E8EB;
+                    background:rgba(148,163,184,0.25);
                     height:10px;
                     border-radius:10px;
                     margin-top:10px;
                 ">
                     <div style="
-                        background:#B3202A;
+                        background:{colors['primary']};
                         width:{score}%;
                         height:10px;
                         border-radius:10px;
@@ -984,7 +1081,7 @@ def country_overview(country, row):
                 </div>
 
                 <div style="
-                    color:#777C84;
+                    color:#94A3B8;
                     font-size:12px;
                     margin-top:10px;
                 ">
@@ -1075,12 +1172,13 @@ def market_tab(country, row):
     st.markdown(
         """
         <div style="
-            background:white;
-            border:1px solid #E4E6EA;
+            background:rgba(30, 41, 59, 0.65);
+            border:1px solid rgba(148, 163, 184, 0.25);
             border-radius:12px;
             padding:25px;
             text-align:center;
             font-size:18px;
+            color:#F8FAFC;
         ">
             HD Population
             ↓
@@ -1421,8 +1519,6 @@ def tenders_tab(country):
 
     c1, c2, c3 = st.columns(3)
 
-    current_year = 2026
-
     tenders_2025 = tenders[
         tenders["Published"].astype(str).str.contains("2025", na=False)
     ]
@@ -1494,10 +1590,6 @@ def strategy_tab(country, row):
 
     st.markdown("### AMECATH Country Playbook")
 
-    distributors = data.get("Distributors", pd.DataFrame())
-    kols = data.get("KOLS", pd.DataFrame())
-    competitors = data.get("Compititors", pd.DataFrame())
-    tenders = data.get("tenders", pd.DataFrame())
     asp = data.get("ASP", pd.DataFrame())
 
     c1, c2, c3 = st.columns(3)
@@ -1681,6 +1773,10 @@ def country_explorer():
 
     country = country_selector()
 
+    # Theme this page with the selected country's flag colors and
+    # landscape background.
+    apply_country_theme(country)
+
     row = get_country_row(country)
 
     country_hero(country, row)
@@ -1804,8 +1900,8 @@ def sources_page():
 
         ### Visual assets
 
-        The dashboard can load the uploaded country/city images from the
-        accompanying ZIP archive.
+        The dashboard loads each country's flag and landscape photo directly
+        from the repo (root folder or an `/assets` subfolder).
 
         ### Important
 
